@@ -28,26 +28,23 @@ Recursos de produto:
 flowchart LR
     U["👤 Usuário<br/>foto + sintomas"]
 
-    subgraph VPS["VPS — Docker (docker compose)"]
-        C["Caddy<br/>reverse proxy<br/>HTTPS automático (Let's Encrypt)"]
-        A["App Next.js 16<br/>Node 24 · standalone<br/>user não-root"]
+    subgraph VPS["VPS — Dokploy (Docker)"]
+        T["Traefik<br/>reverse proxy<br/>HTTPS automático (Let's Encrypt)"]
+        A["App Next.js 16<br/>Node 24 · standalone<br/>container não-root"]
         V[("Volume<br/>stats.json")]
-        C -->|":443"| A
+        T -->|":443"| A
         A --- V
     end
 
-    G["Google Gemini 2.0 Flash<br/>API de visão (free tier)"]
+    G["GitHub<br/>push"] -->|"webhook: rebuild"| T
+    A -->|"HTTPS"| M["Google Gemini 2.0 Flash<br/>API de visão (free tier)"]
 
-    CI["GitHub Actions<br/>build → GHCR → SSH deploy"]
-
-    U --> C
-    A -->|HTTPS| G
-    CI -->|push :latest| GHCR["ghcr.io"] --> A
+    U --> T
 ```
 
-- **CI/CD**: todo push na `main` builda a imagem (com cache), publica no GitHub Container Registry e faz deploy na VPS via SSH — com healthcheck automático ao final
-- **Caddy** emite e renova o certificado TLS sozinho, sem configuração manual
-- **Container não-root** com healthcheck e restart policy
+- **Deploy contínuo**: cada `git push` dispara o rebuild no Dokploy (build da imagem Docker e publicação automáticos)
+- **Traefik** (via Dokploy) emite e renova o certificado TLS sozinho, sem configuração manual
+- **Container não-root** com healthcheck (`/api/health`) e restart automático
 
 ## Stack
 
@@ -56,9 +53,8 @@ flowchart LR
 | Frontend + API | Next.js 16 (App Router) + TypeScript |
 | Estilo | Tailwind CSS 4 (tema escuro, acento verde) |
 | IA | Gemini 2.0 Flash (visão) com resposta em JSON estruturado |
-| Runtime | Node 24, Docker (multi-stage, ~150 MB) |
-| Proxy/HTTPS | Caddy 2 |
-| CI/CD | GitHub Actions → GHCR → SSH |
+| Runtime | Node 24, Docker (multi-stage) |
+| Deploy | Dokploy (build Docker + Traefik + HTTPS) |
 | Custo total | **R$ 0** (free tier do Gemini) + a VPS |
 
 ## Rodando localmente
@@ -75,17 +71,17 @@ cp .env.example .env   # cole sua chave do aistudio.google.com
 npm run dev
 ```
 
-## Deploy na VPS
+## Deploy
 
 Guia completo, passo a passo (para iniciante): [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
-Resumo: configurar DNS → instalar Docker → criar `.env` → `docker compose -f docker-compose.prod.yml up -d`. A partir daí, cada `git push` faz deploy automático.
+Resumo: push no GitHub → projeto no Dokploy apontando pro repo → domínio com HTTPS automático. A partir daí, cada `git push` vira deploy sozinho.
 
 ## Monitoramento
 
-- `GET /api/health` — healthcheck do app (usado pelo Docker e pelo CI)
-- `docker compose ps` / `docker logs` na VPS
+- `GET /api/health` — healthcheck do app (usado pelo Dokploy)
+- Logs e status em tempo real no painel do Dokploy
 
 ---
 
-Feito por [João Paulo](https://www.linkedin.com/) · [polaryeti.com](https://www.polaryeti.com) · As fotos nunca são armazenadas.
+Feito por João Paulo · [polaryeti.com](https://www.polaryeti.com) · As fotos nunca são armazenadas.
